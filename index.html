@@ -1,0 +1,854 @@
+cat > /mnt/user-data/outputs/geomail-tracker.html << 'HTMLEOF'
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GeoMail Tracker — Enterprise Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0A0E1A;font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;color:#F1F5F9}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:#0A0E1A}
+::-webkit-scrollbar-thumb{background:#1E2D45;border-radius:4px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes fadein{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+select,textarea,input{outline:none;font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+
+// TOKENS
+const T={
+bg:"#0A0E1A",surface:"#111827",surfaceAlt:"#1A2235",
+border:"#1E2D45",borderLight:"#243352",
+accent:"#0EA5E9",accentDark:"#0369A1",accentGlow:"rgba(14,165,233,0.15)",
+success:"#10B981",successGlow:"rgba(16,185,129,0.12)",
+warning:"#F59E0B",warningGlow:"rgba(245,158,11,0.12)",
+danger:"#EF4444",dangerGlow:"rgba(239,68,68,0.12)",
+pending:"#8B5CF6",text:"#F1F5F9",textMuted:"#64748B",textSub:"#94A3B8",map:"#0D1A2D"
+};
+
+// DATA
+const CAMPAIGNS=[
+{id:1,name:"Cobranza Masiva Q2-2026",client:"Banco Nacional",type:"B",start:"2026-05-01",end:"2026-06-30",total:1480,delivered:1042,rejected:187,pending:251,supervisors:2,repartidores:8,status:"active"},
+{id:2,name:"Notificaciones Judiciales - Lote 14",client:"Estudio Jurídico Morales",type:"A",start:"2026-06-01",end:"2026-06-25",total:340,delivered:289,rejected:31,pending:20,supervisors:1,repartidores:3,status:"active"},
+{id:3,name:"Envíos Certificados Financiera",client:"Financiera Sur",type:"B",start:"2026-06-10",end:"2026-07-10",total:820,delivered:412,rejected:98,pending:310,supervisors:1,repartidores:5,status:"active"},
+{id:4,name:"Correspondencia Premiación",client:"Aseguradora Norte",type:"A",start:"2026-04-01",end:"2026-04-30",total:600,delivered:589,rejected:11,pending:0,supervisors:1,repartidores:4,status:"completed"},
+{id:5,name:"Avisos de Vencimiento",client:"Banco Nacional",type:"A",start:"2026-06-15",end:"2026-07-15",total:1200,delivered:87,rejected:12,pending:1101,supervisors:2,repartidores:6,status:"active"},
+];
+const REPARTIDORES=[
+{id:1,name:"Carlos Mendoza",campaign:"Cobranza Masiva Q2-2026",today:34,total:412,success:88,status:"active",lastSeen:"hace 2 min"},
+{id:2,name:"Ana Rodríguez",campaign:"Cobranza Masiva Q2-2026",today:28,total:387,success:91,status:"active",lastSeen:"hace 5 min"},
+{id:3,name:"Pedro Salinas",campaign:"Notificaciones Judiciales",today:19,total:201,success:85,status:"active",lastSeen:"hace 1 min"},
+{id:4,name:"María Torres",campaign:"Envíos Certificados",today:41,total:310,success:93,status:"idle",lastSeen:"hace 18 min"},
+{id:5,name:"Luis Vega",campaign:"Avisos de Vencimiento",today:12,total:87,success:79,status:"active",lastSeen:"hace 3 min"},
+];
+const ALERTS=[
+{id:1,type:"fraud",msg:"GPS sospechoso detectado — Carlos Mendoza",time:"14:32",icon:"⚠️"},
+{id:2,type:"warning",msg:"Entrega fuera de radio permitido — Pedro Salinas",time:"14:18",icon:"📍"},
+{id:3,type:"info",msg:"Campaña 'Avisos de Vencimiento' iniciada",time:"09:00",icon:"🚀"},
+{id:4,type:"fraud",msg:"Foto duplicada detectada — Luis Vega",time:"13:45",icon:"📷"},
+{id:5,type:"warning",msg:"Repartidor sin actividad 20 min — María Torres",time:"14:10",icon:"⏱️"},
+];
+const DELIVERY_STATUSES=["Entregada","Entregada a tercero autorizado","Rechazada","No había moradores","Dirección inexistente","Mudado","Número incorrecto","Acceso restringido","Fallecido","Local cerrado","No responde","Pendiente"];
+const DELIVERIES=[
+{id:"COB-0001234",name:"Roberto Fuentes Muñoz",rut:"12.345.678-9",address:"Av. Providencia 1234, Depto 501",commune:"Providencia",status:"Entregada",repartidor:"Carlos Mendoza",time:"14:32"},
+{id:"COB-0001235",name:"Sandra López Vera",rut:"9.876.543-2",address:"Calle Las Rosas 456",commune:"Ñuñoa",status:"No había moradores",repartidor:"Ana Rodríguez",time:"14:15"},
+{id:"COB-0001236",name:"Marco Díaz Torres",rut:"15.234.567-K",address:"Pasaje El Roble 89",commune:"Macul",status:"Rechazada",repartidor:"Carlos Mendoza",time:"13:58"},
+{id:"COB-0001237",name:"Patricia Soto Herrera",rut:"11.111.111-1",address:"Gran Avenida 5678",commune:"San Miguel",status:"Entregada a tercero autorizado",repartidor:"Pedro Salinas",time:"13:41"},
+{id:"COB-0001238",name:"Felipe Contreras Ruiz",rut:"8.765.432-1",address:"Av. Tobalaba 999",commune:"La Florida",status:"Pendiente",repartidor:"Luis Vega",time:"—"},
+];
+
+// COMPONENTS
+const Badge=({status})=>{
+const map={
+active:{bg:T.successGlow,color:T.success,label:"Activa"},
+completed:{bg:T.accentGlow,color:T.accent,label:"Completada"},
+"Entregada":{bg:T.successGlow,color:T.success},
+"Entregada a tercero autorizado":{bg:"rgba(16,185,129,0.08)",color:"#34D399"},
+"Rechazada":{bg:T.dangerGlow,color:T.danger},
+"No había moradores":{bg:T.warningGlow,color:T.warning},
+"Dirección inexistente":{bg:T.dangerGlow,color:T.danger},
+"Pendiente":{bg:"rgba(139,92,246,0.12)",color:T.pending},
+fraud:{bg:T.dangerGlow,color:T.danger,label:"Crítica"},
+warning:{bg:T.warningGlow,color:T.warning,label:"Alerta"},
+info:{bg:T.accentGlow,color:T.accent,label:"Info"},
+};
+const s=map[status]||{bg:T.accentGlow,color:T.accent,label:status};
+return <span style={{background:s.bg,color:s.color,padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:600,whiteSpace:"nowrap",border:`1px solid ${s.color}22`}}>{s.label||status}</span>;
+};
+
+const Stat=({label,value,sub,color=T.accent,icon})=>(
+<div style={{background:T.surfaceAlt,border:`1px solid ${T.border}`,borderRadius:12,padding:"16px 20px",display:"flex",flexDirection:"column",gap:4}}>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+{icon&&<span style={{fontSize:18}}>{icon}</span>}
+<span style={{color:T.textMuted,fontSize:11,textTransform:"uppercase",letterSpacing:1}}>{label}</span>
+</div>
+<span style={{color,fontSize:28,fontWeight:700,lineHeight:1}}>{value}</span>
+{sub&&<span style={{color:T.textMuted,fontSize:11}}>{sub}</span>}
+</div>
+);
+
+const ProgressBar=({value,max,color=T.accent})=>(
+<div style={{background:T.border,borderRadius:4,height:6,overflow:"hidden"}}>
+<div style={{width:`${Math.min(100,Math.round((value/max)*100))}%`,background:color,height:"100%",borderRadius:4,transition:"width .6s ease"}}/>
+</div>
+);
+
+const LiveMap=()=>{
+const [tick,setTick]=useState(0);
+useEffect(()=>{const t=setInterval(()=>setTick(p=>p+1),2000);return()=>clearInterval(t);},[]);
+const points=[
+{x:38,y:32,status:"green"},{x:55,y:45,status:"red"},{x:70,y:28,status:"green"},
+{x:25,y:58,status:"yellow"},{x:62,y:62,status:"green"},{x:45,y:70,status:"yellow"},
+{x:80,y:50,status:"red"},{x:33,y:42,status:"green"},{x:50,y:22,status:"green"},{x:72,y:75,status:"yellow"},
+{x:15,y:35,status:"green"},{x:88,y:30,status:"red"},{x:60,y:15,status:"yellow"},
+];
+const reps=[
+{x:40+(tick%5),y:34+(tick%3),name:"C. Mendoza",color:T.accent},
+{x:56+(tick%4),y:47-(tick%2),name:"A. Rodríguez",color:"#A78BFA"},
+{x:27+(tick%3),y:60+(tick%4),name:"P. Salinas",color:T.warning},
+];
+const colMap={green:T.success,red:T.danger,yellow:T.warning};
+return(
+<div style={{position:"relative",background:T.map,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden",height:"100%",minHeight:300}}>
+{[...Array(8)].map((_,i)=><div key={i} style={{position:"absolute",left:`${i*14}%`,top:0,bottom:0,borderLeft:`1px solid ${T.border}`,opacity:.4}}/>)}
+{[...Array(6)].map((_,i)=><div key={i} style={{position:"absolute",top:`${i*17}%`,left:0,right:0,borderTop:`1px solid ${T.border}`,opacity:.4}}/>)}
+<svg style={{position:"absolute",inset:0,width:"100%",height:"100%"}}>
+<line x1="0%" y1="40%" x2="100%" y2="40%" stroke={T.borderLight} strokeWidth={2}/>
+<line x1="0%" y1="65%" x2="100%" y2="65%" stroke={T.borderLight} strokeWidth={1.5}/>
+<line x1="35%" y1="0%" x2="35%" y2="100%" stroke={T.borderLight} strokeWidth={2}/>
+<line x1="70%" y1="0%" x2="70%" y2="100%" stroke={T.borderLight} strokeWidth={1.5}/>
+<line x1="10%" y1="15%" x2="90%" y2="85%" stroke={T.borderLight} strokeWidth={1} opacity={.5}/>
+<line x1="5%" y1="70%" x2="95%" y2="20%" stroke={T.borderLight} strokeWidth={1} opacity={.3}/>
+</svg>
+{points.map((p,i)=>(
+<div key={i} style={{position:"absolute",left:`${p.x}%`,top:`${p.y}%`,transform:"translate(-50%,-50%)"}}>
+<div style={{width:12,height:12,borderRadius:"50%",background:colMap[p.status],border:`2px solid ${T.bg}`,boxShadow:`0 0 8px ${colMap[p.status]}`}}/>
+</div>
+))}
+{reps.map((r,i)=>(
+<div key={i} style={{position:"absolute",left:`${r.x}%`,top:`${r.y}%`,transform:"translate(-50%,-50%)",zIndex:10}}>
+<div style={{background:r.color,color:T.bg,borderRadius:20,padding:"2px 8px",fontSize:10,fontWeight:700,whiteSpace:"nowrap",boxShadow:`0 0 12px ${r.color}80`}}>📍 {r.name}</div>
+</div>
+))}
+<div style={{position:"absolute",bottom:12,left:12,background:"rgba(10,14,26,.9)",borderRadius:8,padding:"8px 12px",display:"flex",gap:14,border:`1px solid ${T.border}`}}>
+{[["green","Entregada"],["red","No Entregada"],["yellow","Pendiente"]].map(([c,l])=>(
+<div key={c} style={{display:"flex",alignItems:"center",gap:5}}>
+<div style={{width:8,height:8,borderRadius:"50%",background:colMap[c]}}/>
+<span style={{color:T.textSub,fontSize:10}}>{l}</span>
+</div>
+))}
+</div>
+<div style={{position:"absolute",top:12,right:12,background:T.dangerGlow,border:`1px solid ${T.danger}`,borderRadius:20,padding:"3px 10px",display:"flex",alignItems:"center",gap:5}}>
+<div style={{width:6,height:6,borderRadius:"50%",background:T.danger,animation:"pulse 1.5s infinite"}}/>
+<span style={{color:T.danger,fontSize:10,fontWeight:700}}>EN VIVO</span>
+</div>
+<div style={{position:"absolute",top:12,left:12,background:"rgba(10,14,26,.8)",border:`1px solid ${T.border}`,borderRadius:8,padding:"6px 10px"}}>
+<span style={{color:T.textMuted,fontSize:10}}>{REPARTIDORES.filter(r=>r.status==="active").length} activos · {points.filter(p=>p.status==="green").length} entregadas</span>
+</div>
+</div>
+);
+};
+
+// MOBILE APP
+const MobileApp=({step,setStep})=>{
+const [scanned,setScanned]=useState(false);
+const [photoTaken,setPhotoTaken]=useState(false);
+const [signed,setSigned]=useState(false);
+const [selectedStatus,setSelectedStatus]=useState("");
+const [obs,setObs]=useState("");
+const [saved,setSaved]=useState(false);
+const handleSave=()=>{
+if(selectedStatus){setSaved(true);setTimeout(()=>{setSaved(false);setStep(0);setScanned(false);setPhotoTaken(false);setSigned(false);setSelectedStatus("");setObs("");},2500);}
+};
+const screens={
+0:(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<div style={{textAlign:"center",padding:"16px 0 8px"}}>
+<div style={{fontSize:28,marginBottom:4}}>📦</div>
+<div style={{color:T.text,fontWeight:700,fontSize:15}}>Mis Campañas</div>
+<div style={{color:T.textMuted,fontSize:11}}>Martes, 17 junio 2026</div>
+</div>
+{CAMPAIGNS.filter(c=>c.status==="active").slice(0,3).map(c=>(
+<div key={c.id} onClick={()=>setStep(1)} style={{background:T.surfaceAlt,borderRadius:12,padding:14,border:`1px solid ${T.border}`,cursor:"pointer"}}>
+<div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+<span style={{color:T.text,fontWeight:600,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:8}}>{c.name}</span>
+<span style={{background:T.accentGlow,color:T.accent,fontSize:9,padding:"2px 6px",borderRadius:10,fontWeight:700,flexShrink:0}}>Tipo {c.type}</span>
+</div>
+<div style={{color:T.textMuted,fontSize:11,marginBottom:8}}>{c.client}</div>
+<ProgressBar value={c.delivered} max={c.total} color={T.success}/>
+<div style={{display:"flex",justifyContent:"space-between",marginTop:4}}>
+<span style={{color:T.textMuted,fontSize:10}}>{c.delivered}/{c.total} entregas</span>
+<span style={{color:T.success,fontSize:10,fontWeight:600}}>{Math.round((c.delivered/c.total)*100)}%</span>
+</div>
+</div>
+))}
+</div>
+),
+1:(
+<div style={{display:"flex",flexDirection:"column",gap:10,animation:"fadein .3s ease"}}>
+<button onClick={()=>setStep(0)} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Volver</button>
+<div style={{background:T.surfaceAlt,borderRadius:12,padding:14,border:`1px solid ${T.border}`}}>
+<div style={{color:T.textMuted,fontSize:10,marginBottom:2}}>CAMPAÑA ACTIVA</div>
+<div style={{color:T.text,fontWeight:700,fontSize:13}}>Cobranza Masiva Q2-2026</div>
+<div style={{color:T.textMuted,fontSize:11}}>251 entregas pendientes hoy</div>
+</div>
+<button onClick={()=>setStep(2)} style={{background:T.accent,color:"#fff",border:"none",borderRadius:12,padding:"14px 0",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+<span>📷</span> Escanear Código de Barras
+</button>
+<div style={{color:T.textMuted,fontSize:11,textAlign:"center"}}>Próximas en tu ruta:</div>
+{DELIVERIES.slice(0,3).map(d=>(
+<div key={d.id} onClick={()=>setStep(2)} style={{background:T.surfaceAlt,borderRadius:10,padding:"10px 14px",border:`1px solid ${T.border}`,cursor:"pointer"}}>
+<div style={{display:"flex",justifyContent:"space-between",gap:8}}>
+<span style={{color:T.text,fontWeight:600,fontSize:12,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name}</span>
+<Badge status={d.status}/>
+</div>
+<div style={{color:T.textMuted,fontSize:10,marginTop:3}}>{d.address}</div>
+</div>
+))}
+</div>
+),
+2:(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Volver</button>
+<div style={{background:T.map,borderRadius:12,height:100,display:"flex",alignItems:"center",justifyContent:"center",border:`2px dashed ${scanned?T.success:T.border}`,cursor:"pointer"}} onClick={()=>setScanned(true)}>
+{scanned
+?<div style={{textAlign:"center"}}><div style={{fontSize:24}}>✅</div><div style={{color:T.success,fontSize:11,fontWeight:700}}>COB-0001234</div></div>
+:<div style={{textAlign:"center"}}><div style={{fontSize:28,letterSpacing:2}}>| | | | |</div><div style={{color:T.textMuted,fontSize:11}}>Toca para simular escaneo</div></div>
+}
+</div>
+{scanned&&(
+<>
+<div style={{background:T.surfaceAlt,borderRadius:12,padding:14,border:`1px solid ${T.success}40`,animation:"fadein .3s ease"}}>
+<div style={{color:T.success,fontSize:10,fontWeight:700,marginBottom:8}}>✓ DESTINATARIO ENCONTRADO</div>
+{[["Nombre","Roberto Fuentes Muñoz"],["RUT","12.345.678-9"],["Dirección","Av. Providencia 1234, Depto 501"],["Comuna","Providencia"],["Ciudad","Santiago"]].map(([k,v])=>(
+<div key={k} style={{display:"flex",gap:8,marginBottom:4}}>
+<span style={{color:T.textMuted,fontSize:10,minWidth:60}}>{k}:</span>
+<span style={{color:T.text,fontSize:10,fontWeight:600}}>{v}</span>
+</div>
+))}
+<div style={{marginTop:8,padding:"6px 10px",background:T.successGlow,borderRadius:8,display:"flex",alignItems:"center",gap:6}}>
+<span style={{fontSize:10}}>📍</span>
+<span style={{color:T.success,fontSize:10,fontWeight:600}}>A 42m del domicilio registrado ✓</span>
+</div>
+</div>
+<button onClick={()=>setStep(3)} style={{background:T.accent,color:"#fff",border:"none",borderRadius:12,padding:"12px 0",fontWeight:700,fontSize:13,cursor:"pointer"}}>
+📷 Capturar Evidencia Fotográfica
+</button>
+</>
+)}
+</div>
+),
+3:(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<button onClick={()=>setStep(2)} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Volver</button>
+<div style={{color:T.text,fontWeight:700,fontSize:14}}>Evidencia Fotográfica</div>
+<div style={{background:T.surfaceAlt,borderRadius:12,padding:12,border:`1px solid ${photoTaken?T.success:T.border}`}}>
+<div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+<span style={{color:T.text,fontSize:12,fontWeight:600}}>📸 Foto 1 — Domicilio</span>
+<span style={{color:T.danger,fontSize:10,fontWeight:700}}>OBLIGATORIA</span>
+</div>
+<div style={{background:T.map,borderRadius:8,height:90,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",position:"relative",overflow:"hidden"}} onClick={()=>setPhotoTaken(true)}>
+{photoTaken
+?<>
+<div style={{width:"100%",height:"100%",background:"linear-gradient(135deg,#1a3a4a 0%,#0d2030 100%)",display:"flex",alignItems:"center",justifyContent:"center"}}>
+<span style={{fontSize:30}}>🏠</span>
+</div>
+<div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,.8)",padding:"3px 6px",display:"flex",gap:8,flexWrap:"wrap"}}>
+{["17/06/26 14:32","-33.435, -70.642","Providencia, Santiago","Cobranza Q2","C. Mendoza"].map(t=>(
+<span key={t} style={{color:"#fff",fontSize:8,fontWeight:600}}>{t}</span>
+))}
+</div>
+</>
+:<div style={{textAlign:"center"}}><div style={{fontSize:24}}>📷</div><div style={{color:T.textMuted,fontSize:10}}>Toca para capturar</div></div>
+}
+</div>
+{photoTaken&&<div style={{color:T.success,fontSize:10,marginTop:6}}>✓ Marca de agua aplicada automáticamente</div>}
+</div>
+<div style={{background:T.surfaceAlt,borderRadius:12,padding:12,border:`1px solid ${T.border}`}}>
+<div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
+<span style={{color:T.text,fontSize:12,fontWeight:600}}>📋 Foto 2 — Documento firmado</span>
+<span style={{color:T.textMuted,fontSize:10}}>Sin marca de agua · Tipo B</span>
+</div>
+<div style={{background:T.map,borderRadius:8,height:60,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={()=>{}}>
+<div style={{textAlign:"center"}}><div style={{fontSize:18}}>📄</div><div style={{color:T.textMuted,fontSize:10}}>Toca para capturar</div></div>
+</div>
+</div>
+<button onClick={()=>setStep(4)} disabled={!photoTaken} style={{background:photoTaken?T.accent:T.border,color:photoTaken?"#fff":T.textMuted,border:"none",borderRadius:12,padding:"12px 0",fontWeight:700,fontSize:13,cursor:photoTaken?"pointer":"not-allowed"}}>
+✍️ Capturar Firma Digital
+</button>
+</div>
+),
+4:(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<button onClick={()=>setStep(3)} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:12,textAlign:"left",padding:0}}>← Volver</button>
+<div style={{color:T.text,fontWeight:700,fontSize:14}}>Firma Digital + Estado</div>
+<div style={{background:T.map,borderRadius:12,height:110,border:`2px dashed ${signed?T.success:T.border}`,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={()=>setSigned(true)}>
+{signed
+?<svg width="200" height="70" viewBox="0 0 200 70"><path d="M20 45 Q45 10 65 38 Q85 58 110 22 Q130 -2 155 32 Q170 48 180 28" fill="none" stroke={T.success} strokeWidth={3} strokeLinecap="round"/></svg>
+:<div style={{textAlign:"center"}}><div style={{fontSize:28}}>✍️</div><div style={{color:T.textMuted,fontSize:11}}>Toca para firmar</div></div>
+}
+</div>
+{signed&&<div style={{background:T.successGlow,borderRadius:10,padding:10,border:`1px solid ${T.success}40`,animation:"fadein .3s ease"}}>
+<div style={{color:T.success,fontSize:10,fontWeight:700}}>✓ Firma registrada con GPS certificado</div>
+<div style={{color:T.textMuted,fontSize:10}}>17/06/2026 14:34 · -33.435, -70.642</div>
+</div>}
+<select value={selectedStatus} onChange={e=>setSelectedStatus(e.target.value)} style={{background:T.surfaceAlt,color:T.text,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 12px",fontSize:12}}>
+<option value="">Estado de entrega * (obligatorio)</option>
+{DELIVERY_STATUSES.map(s=><option key={s} value={s}>{s}</option>)}
+</select>
+<textarea value={obs} onChange={e=>setObs(e.target.value)} maxLength={500} placeholder="Observaciones (máx. 500 caracteres)..." style={{background:T.surfaceAlt,color:T.text,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 12px",fontSize:11,resize:"none",height:70}}/>
+<div style={{display:"flex",gap:8}}>
+<button onClick={handleSave} disabled={!signed||!selectedStatus} style={{flex:1,background:signed&&selectedStatus?T.success:T.border,color:signed&&selectedStatus?"#fff":T.textMuted,border:"none",borderRadius:12,padding:"12px 0",fontWeight:700,fontSize:13,cursor:signed&&selectedStatus?"pointer":"not-allowed"}}>
+💾 Guardar Registro
+</button>
+</div>
+{saved&&<div style={{background:T.successGlow,borderRadius:12,padding:14,border:`1px solid ${T.success}`,textAlign:"center",animation:"fadein .3s ease"}}>
+<div style={{fontSize:24,marginBottom:4}}>🎉</div>
+<div style={{color:T.success,fontWeight:700,fontSize:13}}>¡Entrega registrada exitosamente!</div>
+<div style={{color:T.textMuted,fontSize:11,marginTop:4}}>Sincronizando con Google Drive... ✓</div>
+</div>}
+</div>
+),
+};
+return(
+<div style={{width:290,background:T.surface,borderRadius:32,border:`3px solid ${T.borderLight}`,overflow:"hidden",boxShadow:"0 24px 80px rgba(0,0,0,.6)",flexShrink:0}}>
+<div style={{background:T.bg,padding:"10px 20px 6px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<span style={{color:T.textMuted,fontSize:10}}>14:34</span>
+<div style={{width:80,height:14,background:T.bg,borderRadius:10,border:`1px solid ${T.border}`}}/>
+<span style={{color:T.textMuted,fontSize:10}}>📶 GPS ✓</span>
+</div>
+<div style={{background:T.bg,padding:"8px 16px 12px",borderBottom:`1px solid ${T.border}`}}>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+<div style={{width:28,height:28,borderRadius:8,background:`linear-gradient(135deg,${T.accent},${T.accentDark})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>📍</div>
+<div>
+<div style={{color:T.text,fontSize:12,fontWeight:800,letterSpacing:-.3}}>GeoMail Tracker</div>
+<div style={{color:T.textMuted,fontSize:9}}>Carlos Mendoza · Repartidor</div>
+</div>
+<div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4}}>
+<div style={{width:7,height:7,borderRadius:"50%",background:T.success,animation:"pulse 2s infinite"}}/>
+<span style={{color:T.textMuted,fontSize:9}}>Online</span>
+</div>
+</div>
+</div>
+<div style={{padding:14,minHeight:480,maxHeight:520,overflowY:"auto"}}>{screens[step]}</div>
+<div style={{background:T.bg,borderTop:`1px solid ${T.border}`,padding:"10px 0",display:"flex",justifyContent:"space-around"}}>
+{[["🗺️","Ruta"],["📦","Entregas"],["📊","Stats"],["👤","Perfil"]].map(([icon,label])=>(
+<div key={label} style={{textAlign:"center",cursor:"pointer"}}>
+<div style={{fontSize:18}}>{icon}</div>
+<div style={{color:T.textMuted,fontSize:9}}>{label}</div>
+</div>
+))}
+</div>
+</div>
+);
+};
+
+// ADMIN DASHBOARD
+const AdminDashboard=()=>{
+const [activeTab,setActiveTab]=useState("overview");
+const totalDelivered=CAMPAIGNS.reduce((a,c)=>a+c.delivered,0);
+const totalRecords=CAMPAIGNS.reduce((a,c)=>a+c.total,0);
+const totalPending=CAMPAIGNS.reduce((a,c)=>a+c.pending,0);
+const totalRejected=CAMPAIGNS.reduce((a,c)=>a+c.rejected,0);
+const tabs=[{id:"overview",icon:"📊"},{id:"campañas",icon:"📋"},{id:"repartidores",icon:"👥"},{id:"alertas",icon:"🚨"},{id:"reportes",icon:"📁"}];
+return(
+<div style={{display:"flex",flexDirection:"column",gap:20}}>
+<div style={{display:"flex",gap:4,background:T.surfaceAlt,borderRadius:10,padding:4,border:`1px solid ${T.border}`}}>
+{tabs.map(t=>(
+<button key={t.id} onClick={()=>setActiveTab(t.id)} style={{flex:1,background:activeTab===t.id?T.accent:"none",color:activeTab===t.id?"#fff":T.textMuted,border:"none",borderRadius:7,padding:"8px 4px",fontSize:12,fontWeight:activeTab===t.id?700:400,cursor:"pointer",textTransform:"capitalize",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+<span>{t.icon}</span><span>{t.id}</span>
+</button>
+))}
+</div>
+
+{activeTab==="overview"&&(
+<div style={{display:"flex",flexDirection:"column",gap:20,animation:"fadein .3s ease"}}>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+<Stat label="Total Registros" value={totalRecords.toLocaleString()} icon="📋" color={T.accent} sub="5 campañas activas"/>
+<Stat label="Entregadas" value={totalDelivered.toLocaleString()} icon="✅" color={T.success} sub={`${Math.round((totalDelivered/totalRecords)*100)}% tasa de éxito`}/>
+<Stat label="Pendientes" value={totalPending.toLocaleString()} icon="⏳" color={T.warning} sub="En proceso"/>
+<Stat label="Rechazadas" value={totalRejected.toLocaleString()} icon="❌" color={T.danger} sub="Para revisión"/>
+</div>
+<div>
+<div style={{color:T.textMuted,fontSize:11,marginBottom:8,display:"flex",alignItems:"center",gap:8}}>
+<span style={{color:T.text,fontWeight:600}}>Mapa de Operaciones en Tiempo Real</span>
+<span>·</span>
+<span>{REPARTIDORES.filter(r=>r.status==="active").length} repartidores activos</span>
+</div>
+<div style={{height:320}}><LiveMap/></div>
+</div>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+<div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between"}}>
+<span style={{color:T.text,fontWeight:700,fontSize:13}}>Campañas Activas</span>
+<button onClick={()=>setActiveTab("campañas")} style={{background:"none",border:"none",color:T.accent,cursor:"pointer",fontSize:11}}>Ver todas →</button>
+</div>
+<div style={{overflowX:"auto"}}>
+<table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+<thead><tr>{["Campaña","Cliente","Tipo","Progreso","Éxito","Estado"].map(h=>(
+<th key={h} style={{padding:"8px 12px",color:T.textMuted,textAlign:"left",borderBottom:`1px solid ${T.border}`,fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>
+))}</tr></thead>
+<tbody>{CAMPAIGNS.map((c,i)=>(
+<tr key={c.id} style={{borderBottom:i<CAMPAIGNS.length-1?`1px solid ${T.border}`:"none"}}>
+<td style={{padding:"10px 12px",color:T.text,fontWeight:600,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</td>
+<td style={{padding:"10px 12px",color:T.textSub,whiteSpace:"nowrap"}}>{c.client}</td>
+<td style={{padding:"10px 12px"}}><span style={{background:T.accentGlow,color:T.accent,padding:"2px 8px",borderRadius:10,fontSize:10,fontWeight:700}}>Tipo {c.type}</span></td>
+<td style={{padding:"10px 12px",minWidth:130}}>
+<ProgressBar value={c.delivered} max={c.total} color={T.success}/>
+<div style={{color:T.textMuted,fontSize:10,marginTop:2}}>{c.delivered}/{c.total}</div>
+</td>
+<td style={{padding:"10px 12px",color:T.success,fontWeight:700}}>{Math.round((c.delivered/c.total)*100)}%</td>
+<td style={{padding:"10px 12px"}}><Badge status={c.status}/></td>
+</tr>
+))}</tbody>
+</table>
+</div>
+</div>
+</div>
+)}
+
+{activeTab==="campañas"&&(
+<div style={{display:"flex",flexDirection:"column",gap:14,animation:"fadein .3s ease"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<div style={{color:T.text,fontWeight:700,fontSize:16}}>Gestión de Campañas</div>
+<button style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",cursor:"pointer",fontSize:12,fontWeight:600}}>+ Nueva Campaña</button>
+</div>
+{CAMPAIGNS.map(c=>(
+<div key={c.id} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+<div>
+<div style={{color:T.text,fontWeight:700,fontSize:13}}>{c.name}</div>
+<div style={{color:T.textMuted,fontSize:11,marginTop:2}}>{c.client} · {c.start} → {c.end}</div>
+</div>
+<div style={{display:"flex",gap:8}}>
+<span style={{background:T.accentGlow,color:T.accent,fontSize:10,padding:"3px 8px",borderRadius:10,fontWeight:700}}>Tipo {c.type}</span>
+<Badge status={c.status}/>
+</div>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:12}}>
+{[["Total",c.total,T.text],["Entregadas",c.delivered,T.success],["Rechazadas",c.rejected,T.danger],["Pendientes",c.pending,T.warning]].map(([l,v,col])=>(
+<div key={l} style={{background:T.bg,borderRadius:8,padding:"8px 12px"}}>
+<div style={{color:T.textMuted,fontSize:10}}>{l}</div>
+<div style={{color:col,fontWeight:700,fontSize:18}}>{v}</div>
+</div>
+))}
+</div>
+<ProgressBar value={c.delivered} max={c.total} color={T.success}/>
+<div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+<span style={{color:T.textMuted,fontSize:10}}>{c.supervisors} supervisores · {c.repartidores} repartidores</span>
+<span style={{color:T.success,fontSize:10,fontWeight:700}}>{Math.round((c.delivered/c.total)*100)}% completado</span>
+</div>
+</div>
+))}
+</div>
+)}
+
+{activeTab==="repartidores"&&(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<div style={{color:T.text,fontWeight:700,fontSize:16}}>Productividad de Repartidores</div>
+{REPARTIDORES.map(r=>(
+<div key={r.id} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:14}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+<div style={{display:"flex",alignItems:"center",gap:10}}>
+<div style={{width:36,height:36,borderRadius:"50%",background:T.accentGlow,border:`2px solid ${T.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:T.accent,fontSize:13,flexShrink:0}}>
+{r.name.split(" ").map(n=>n[0]).join("")}
+</div>
+<div>
+<div style={{color:T.text,fontWeight:700,fontSize:13}}>{r.name}</div>
+<div style={{color:T.textMuted,fontSize:10}}>{r.campaign}</div>
+</div>
+</div>
+<div style={{display:"flex",alignItems:"center",gap:8}}>
+<div style={{width:8,height:8,borderRadius:"50%",background:r.status==="active"?T.success:T.warning,animation:"pulse 2s infinite"}}/>
+<span style={{color:T.textMuted,fontSize:10}}>{r.lastSeen}</span>
+</div>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:10}}>
+{[["Hoy",r.today,T.accent],["Total",r.total,T.text],["Éxito",`${r.success}%`,T.success]].map(([l,v,c])=>(
+<div key={l} style={{background:T.bg,borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+<div style={{color:T.textMuted,fontSize:10}}>{l}</div>
+<div style={{color:c,fontWeight:700,fontSize:18}}>{v}</div>
+</div>
+))}
+</div>
+<ProgressBar value={r.success} max={100} color={r.success>=90?T.success:r.success>=80?T.warning:T.danger}/>
+</div>
+))}
+</div>
+)}
+
+{activeTab==="alertas"&&(
+<div style={{display:"flex",flexDirection:"column",gap:12,animation:"fadein .3s ease"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<div style={{color:T.text,fontWeight:700,fontSize:16}}>Sistema Antifraude · Alertas</div>
+<span style={{background:T.dangerGlow,color:T.danger,fontSize:11,padding:"4px 12px",borderRadius:10,fontWeight:700,border:`1px solid ${T.danger}40`}}>{ALERTS.filter(a=>a.type==="fraud").length} críticas activas</span>
+</div>
+{ALERTS.map(a=>(
+<div key={a.id} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${a.type==="fraud"?T.danger:a.type==="warning"?T.warning:T.border}40`,padding:16,display:"flex",gap:12,alignItems:"flex-start"}}>
+<span style={{fontSize:22,flexShrink:0}}>{a.icon}</span>
+<div style={{flex:1}}>
+<div style={{color:T.text,fontSize:12,fontWeight:600}}>{a.msg}</div>
+<div style={{color:T.textMuted,fontSize:10,marginTop:2}}>Hoy a las {a.time}</div>
+</div>
+<Badge status={a.type}/>
+</div>
+))}
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{color:T.text,fontWeight:700,fontSize:13,marginBottom:12}}>🔍 Reglas Activas de Detección</div>
+{[
+["📍","Radio máximo excedido","Alerta si repartidor está a +50m del domicilio"],
+["📷","Hash de imagen duplicado","Detecta fotos reutilizadas entre entregas"],
+["⚡","Velocidad de entrega anómala","< 60 seg entre entregas consecutivas"],
+["🛰️","GPS simulado","Detección de apps de spoofing y coordenadas fijas"],
+["👤","Doble registro","Mismo código escaneado dos veces"],
+].map(([icon,rule,desc])=>(
+<div key={rule} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
+<span style={{fontSize:16,flexShrink:0}}>{icon}</span>
+<div>
+<div style={{color:T.text,fontSize:11,fontWeight:600}}>{rule}</div>
+<div style={{color:T.textMuted,fontSize:10}}>{desc}</div>
+</div>
+<div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:4}}>
+<div style={{width:7,height:7,borderRadius:"50%",background:T.success}}/>
+<span style={{color:T.success,fontSize:10}}>Activa</span>
+</div>
+</div>
+))}
+</div>
+</div>
+)}
+
+{activeTab==="reportes"&&(
+<div style={{display:"flex",flexDirection:"column",gap:14,animation:"fadein .3s ease"}}>
+<div style={{color:T.text,fontWeight:700,fontSize:16}}>Reportes Automáticos</div>
+{[
+{icon:"📊",name:"Reporte Ejecutivo Q2-2026",desc:"KPIs, estadísticas y mapas de campaña",format:"PDF · Excel",size:"4.2 MB"},
+{icon:"📍",name:"Evidencias Cobranza Masiva",desc:"Fotografías, firmas y GPS certificados",format:"ZIP · PDF",size:"287 MB"},
+{icon:"🗺️",name:"Análisis Geográfico Junio",desc:"Mapa de calor y cobertura territorial",format:"PDF",size:"12.1 MB"},
+{icon:"👥",name:"Productividad Repartidores",desc:"Métricas individuales por agente y campaña",format:"Excel · PDF",size:"1.8 MB"},
+].map(r=>(
+<div key={r.name} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16,display:"flex",gap:14,alignItems:"center"}}>
+<div style={{width:44,height:44,background:T.accentGlow,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{r.icon}</div>
+<div style={{flex:1}}>
+<div style={{color:T.text,fontWeight:700,fontSize:13}}>{r.name}</div>
+<div style={{color:T.textMuted,fontSize:11,marginTop:2}}>{r.desc}</div>
+<div style={{display:"flex",gap:8,marginTop:6}}>
+<span style={{background:T.accentGlow,color:T.accent,fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:700}}>{r.format}</span>
+<span style={{color:T.textMuted,fontSize:10}}>{r.size}</span>
+</div>
+</div>
+<button style={{background:T.accent,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap"}}>⬇️ Descargar</button>
+</div>
+))}
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{color:T.text,fontWeight:700,fontSize:13,marginBottom:12}}>📁 Estructura Google Drive — Automática</div>
+{[
+{level:0,icon:"🏢",name:"Banco Nacional"},
+{level:1,icon:"📂",name:"Cobranza Masiva Q2-2026"},
+{level:2,icon:"👤",name:"Carlos Mendoza"},
+{level:3,icon:"📷",name:"Evidencia Domicilio (342 fotos)"},
+{level:3,icon:"✍️",name:"Evidencia Firma (289 archivos)"},
+{level:3,icon:"📎",name:"Evidencias Adicionales"},
+{level:2,icon:"👤",name:"Ana Rodríguez"},
+{level:3,icon:"📷",name:"Evidencia Domicilio (387 fotos)"},
+].map((item,i)=>(
+<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",paddingLeft:item.level*22,borderBottom:`1px solid ${T.border}20`}}>
+<span style={{fontSize:14}}>{item.icon}</span>
+<span style={{color:item.level===0?T.text:item.level===1?T.accent:T.textSub,fontSize:11,fontWeight:item.level<2?600:400}}>{item.name}</span>
+</div>
+))}
+</div>
+</div>
+)}
+</div>
+);
+};
+
+// CLIENT PORTAL
+const ClientPortal=()=>{
+const c=CAMPAIGNS[0];
+const pct=Math.round((c.delivered/c.total)*100);
+return(
+<div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadein .3s ease"}}>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+<div>
+<div style={{color:T.textMuted,fontSize:10,textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>PORTAL DEL CLIENTE · SOLO LECTURA</div>
+<div style={{color:T.text,fontWeight:800,fontSize:16}}>{c.name}</div>
+<div style={{color:T.textMuted,fontSize:12,marginTop:2}}>Cliente: {c.client}</div>
+</div>
+<Badge status="active"/>
+</div>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+<Stat label="Total" value={c.total.toLocaleString()} icon="📋" color={T.text}/>
+<Stat label="Entregadas" value={c.delivered.toLocaleString()} icon="✅" color={T.success}/>
+<Stat label="Pendientes" value={c.pending.toLocaleString()} icon="⏳" color={T.warning}/>
+<Stat label="Tasa éxito" value={`${pct}%`} icon="🎯" color={T.accent}/>
+</div>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{color:T.text,fontWeight:700,marginBottom:12}}>Avance de Campaña</div>
+<div style={{height:20,background:T.bg,borderRadius:10,overflow:"hidden",position:"relative"}}>
+<div style={{width:`${pct}%`,background:`linear-gradient(90deg,${T.success},${T.accent})`,height:"100%",borderRadius:10}}/>
+<span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",color:T.text,fontSize:11,fontWeight:700}}>{pct}%</span>
+</div>
+<div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+<span style={{color:T.textMuted,fontSize:10}}>Inicio: {c.start}</span>
+<span style={{color:T.textMuted,fontSize:10}}>Término: {c.end}</span>
+</div>
+</div>
+<div style={{height:280}}><LiveMap/></div>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+<div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`}}>
+<span style={{color:T.text,fontWeight:700}}>Últimas Entregas Registradas</span>
+</div>
+<div style={{overflowX:"auto"}}>
+<table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+<thead><tr>{["Código","Destinatario","Dirección","Estado","Hora"].map(h=>(
+<th key={h} style={{padding:"8px 12px",color:T.textMuted,textAlign:"left",borderBottom:`1px solid ${T.border}`,fontWeight:600,whiteSpace:"nowrap"}}>{h}</th>
+))}</tr></thead>
+<tbody>{DELIVERIES.map((d,i)=>(
+<tr key={d.id} style={{borderBottom:i<DELIVERIES.length-1?`1px solid ${T.border}`:"none"}}>
+<td style={{padding:"8px 12px",color:T.accent,fontFamily:"monospace",fontSize:10,whiteSpace:"nowrap"}}>{d.id}</td>
+<td style={{padding:"8px 12px",color:T.text,fontWeight:600,whiteSpace:"nowrap"}}>{d.name}</td>
+<td style={{padding:"8px 12px",color:T.textSub,maxWidth:160,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.address}</td>
+<td style={{padding:"8px 12px"}}><Badge status={d.status}/></td>
+<td style={{padding:"8px 12px",color:T.textMuted,whiteSpace:"nowrap"}}>{d.time}</td>
+</tr>
+))}</tbody>
+</table>
+</div>
+</div>
+</div>
+);
+};
+
+// ARCHITECTURE
+const ArchitecturePanel=()=>(
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,animation:"fadein .3s ease"}}>
+{[
+{title:"Frontend Web",icon:"⚛️",items:["React 18 + Next.js 14","TypeScript strict mode","Tailwind CSS + shadcn/ui","Recharts (dashboards)","Google Maps JS API","Socket.io (tiempo real)"]},
+{title:"App Móvil",icon:"📱",items:["React Native 0.74","Expo SDK 51","SQLite (modo offline)","expo-camera + watermark","expo-location + GPS","expo-barcode-scanner"]},
+{title:"Backend",icon:"⚙️",items:["NestJS + Node.js 20","JWT RS256 + RBAC","WebSockets (Socket.io)","Bull + Redis (colas)","Passport.js (auth)","Swagger / OpenAPI 3.0"]},
+{title:"Base de Datos",icon:"🗄️",items:["PostgreSQL 16","Redis (caché + colas)","TypeORM + migraciones","Particionado por campaña","Índices geoespaciales","Backup automático diario"]},
+{title:"Almacenamiento",icon:"☁️",items:["Google Drive API v3","Watermark service (Sharp)","CDN para evidencias","Compresión automática WebP","Folder por cliente/campaña","Acceso auditado y trazable"]},
+{title:"Infraestructura",icon:"🚀",items:["Docker + Kubernetes","CI/CD GitHub Actions","AWS ECS / GCP Cloud Run","Nginx reverse proxy","Monitoring: Datadog","SSL/TLS + WAF + VPN"]},
+].map(s=>(
+<div key={s.title} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+<span style={{fontSize:20}}>{s.icon}</span>
+<span style={{color:T.text,fontWeight:700,fontSize:13}}>{s.title}</span>
+</div>
+{s.items.map(item=>(
+<div key={item} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:`1px solid ${T.border}20`}}>
+<div style={{width:5,height:5,borderRadius:"50%",background:T.accent,flexShrink:0}}/>
+<span style={{color:T.textSub,fontSize:11}}>{item}</span>
+</div>
+))}
+</div>
+))}
+<div style={{gridColumn:"1 / -1",background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:16}}>
+<div style={{color:T.text,fontWeight:700,fontSize:13,marginBottom:14}}>🔒 Modelo de Seguridad</div>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+{[
+{icon:"🔑",title:"Autenticación",desc:"JWT RS256 + Refresh tokens + 2FA opcional"},
+{icon:"🛡️",title:"Autorización",desc:"RBAC: Admin, Supervisor, Repartidor, Cliente"},
+{icon:"🕵️",title:"Antifraude",desc:"GPS falso, fotos duplicadas, velocidad anómala"},
+{icon:"📋",title:"Auditoría",desc:"Log inmutable con timestamp certificado por acción"},
+].map(s=>(
+<div key={s.title} style={{background:T.bg,borderRadius:10,padding:12}}>
+<div style={{fontSize:20,marginBottom:6}}>{s.icon}</div>
+<div style={{color:T.text,fontWeight:700,fontSize:11,marginBottom:4}}>{s.title}</div>
+<div style={{color:T.textMuted,fontSize:10}}>{s.desc}</div>
+</div>
+))}
+</div>
+</div>
+</div>
+);
+
+// DATA MODEL
+const DataModel=()=>(
+<div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,animation:"fadein .3s ease"}}>
+{[
+{name:"users",color:T.accent,fields:["id UUID PK","name VARCHAR(120)","email VARCHAR UNIQUE","password_hash VARCHAR","role ENUM(admin,supervisor,repartidor,client)","active BOOLEAN","created_at TIMESTAMPTZ"]},
+{name:"clients",color:"#A78BFA",fields:["id UUID PK","name VARCHAR(120)","rut VARCHAR(12) UNIQUE","contact_email VARCHAR","drive_folder_id VARCHAR","active BOOLEAN","created_at TIMESTAMPTZ"]},
+{name:"campaigns",color:T.success,fields:["id UUID PK","name VARCHAR(200)","client_id UUID FK→clients","type ENUM(A,B)","start_date DATE","end_date DATE","status ENUM(draft,active,completed)","created_by UUID FK→users"]},
+{name:"deliveries",color:T.warning,fields:["id UUID PK","barcode VARCHAR UNIQUE","campaign_id UUID FK","recipient_name VARCHAR","rut VARCHAR","address VARCHAR","commune VARCHAR","city VARCHAR","region VARCHAR","status ENUM","assigned_to UUID FK→users"]},
+{name:"delivery_records",color:T.danger,fields:["id UUID PK","delivery_id UUID FK","repartidor_id UUID FK","status ENUM","lat DECIMAL(10,8)","lng DECIMAL(11,8)","accuracy DECIMAL","altitude DECIMAL","speed DECIMAL","photo1_url VARCHAR","photo2_url VARCHAR","signature_url VARCHAR","notes TEXT(500)","recorded_at TIMESTAMPTZ"]},
+{name:"fraud_alerts",color:"#F97316",fields:["id UUID PK","record_id UUID FK","repartidor_id UUID FK","type ENUM(gps_fake,duplicate_photo,speed,radius,duplicate_record)","severity ENUM(low,medium,critical)","details JSONB","resolved BOOLEAN","resolved_by UUID FK","created_at TIMESTAMPTZ"]},
+].map(t=>(
+<div key={t.name} style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+<div style={{background:`${t.color}22`,borderBottom:`1px solid ${t.color}40`,padding:"8px 12px"}}>
+<span style={{color:t.color,fontWeight:800,fontSize:12,fontFamily:"monospace"}}>{t.name}</span>
+</div>
+<div style={{padding:"8px 12px"}}>
+{t.fields.map(f=>(
+<div key={f} style={{color:T.textSub,fontSize:10,fontFamily:"monospace",padding:"2px 0",borderBottom:`1px solid ${T.border}20`}}>{f}</div>
+))}
+</div>
+</div>
+))}
+</div>
+);
+
+// SUPERVISOR VIEW
+const SupervisorView=()=>{
+const [selected,setSelected]=useState(null);
+return(
+<div style={{display:"flex",flexDirection:"column",gap:16,animation:"fadein .3s ease"}}>
+<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+<Stat label="Mis Campañas" value="3" icon="📋" color={T.accent}/>
+<Stat label="Repartidores" value="8" icon="👥" color={T.text}/>
+<Stat label="Por Revisar" value="12" icon="⏳" color={T.warning} sub="evidencias pendientes"/>
+<Stat label="Alertas Hoy" value="5" icon="🚨" color={T.danger}/>
+</div>
+<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+<div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`}}>
+<span style={{color:T.text,fontWeight:700}}>Repartidores Asignados</span>
+</div>
+{REPARTIDORES.map(r=>(
+<div key={r.id} onClick={()=>setSelected(r.id===selected?null:r.id)} style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,cursor:"pointer",background:selected===r.id?T.accentGlow:"none",transition:"background .15s"}}>
+<div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+<div style={{display:"flex",alignItems:"center",gap:10}}>
+<div style={{width:8,height:8,borderRadius:"50%",background:r.status==="active"?T.success:T.warning,animation:"pulse 2s infinite",flexShrink:0}}/>
+<span style={{color:T.text,fontWeight:600,fontSize:12}}>{r.name}</span>
+</div>
+<span style={{color:T.accent,fontWeight:700,fontSize:13}}>{r.today} hoy</span>
+</div>
+{selected===r.id&&(
+<div style={{marginTop:10,display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,animation:"fadein .2s ease"}}>
+{[["Total",r.total,T.text],["Éxito",`${r.success}%`,T.success],["Estado",r.status==="active"?"Activo":"Inactivo",r.status==="active"?T.success:T.warning]].map(([l,v,c])=>(
+<div key={l} style={{background:T.bg,borderRadius:8,padding:"6px 10px",textAlign:"center"}}>
+<div style={{color:T.textMuted,fontSize:9}}>{l}</div>
+<div style={{color:c,fontWeight:700,fontSize:14}}>{v}</div>
+</div>
+))}
+</div>
+)}
+</div>
+))}
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:12}}>
+<div style={{background:T.surfaceAlt,borderRadius:12,border:`1px solid ${T.border}`,padding:14,flex:1}}>
+<div style={{color:T.text,fontWeight:700,marginBottom:12}}>Evidencias Pendientes de Revisión</div>
+{DELIVERIES.slice(0,4).map(d=>(
+<div key={d.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
+<div>
+<div style={{color:T.text,fontSize:11,fontWeight:600}}>{d.name}</div>
+<div style={{color:T.textMuted,fontSize:10}}>{d.repartidor} · {d.time}</div>
+</div>
+<div style={{display:"flex",gap:6}}>
+<button style={{background:T.successGlow,color:T.success,border:`1px solid ${T.success}40`,borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:10,fontWeight:700}}>✓ Aprobar</button>
+<button style={{background:T.dangerGlow,color:T.danger,border:`1px solid ${T.danger}40`,borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:10,fontWeight:700}}>✗ Rechazar</button>
+</div>
+</div>
+))}
+</div>
+<div style={{height:200}}><LiveMap/></div>
+</div>
+</div>
+</div>
+);
+};
+
+// MAIN APP
+const App=()=>{
+const [activePanel,setActivePanel]=useState("admin");
+const [mobileStep,setMobileStep]=useState(0);
+const panels=[
+{id:"admin",label:"Control Center",icon:"🖥️"},
+{id:"supervisor",label:"Operations Center",icon:"👁️"},
+{id:"mobile",label:"App Móvil",icon:"📱"},
+{id:"client",label:"Client Portal",icon:"🏢"},
+{id:"architecture",label:"Arquitectura",icon:"🔧"},
+{id:"datamodel",label:"Modelo de Datos",icon:"🗄️"},
+];
+return(
+<div style={{minHeight:"100vh",background:T.bg}}>
+{/* NAVBAR */}
+<div style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",display:"flex",alignItems:"center",height:56,position:"sticky",top:0,zIndex:100,gap:16}}>
+<div style={{display:"flex",alignItems:"center",gap:10,marginRight:16,flexShrink:0}}>
+<div style={{width:34,height:34,borderRadius:9,background:`linear-gradient(135deg,${T.accent},${T.accentDark})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,boxShadow:`0 0 20px ${T.accentGlow}`}}>📍</div>
+<div>
+<div style={{color:T.text,fontWeight:800,fontSize:14,letterSpacing:-.5}}>GeoMail Tracker</div>
+<div style={{color:T.textMuted,fontSize:9,letterSpacing:.8,textTransform:"uppercase"}}>Enterprise Platform</div>
+</div>
+</div>
+<div style={{display:"flex",gap:3,flex:1,overflowX:"auto"}}>
+{panels.map(p=>(
+<button key={p.id} onClick={()=>setActivePanel(p.id)} style={{background:activePanel===p.id?T.accentGlow:"none",color:activePanel===p.id?T.accent:T.textMuted,border:`1px solid ${activePanel===p.id?T.accent+"40":"transparent"}`,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:activePanel===p.id?700:400,cursor:"pointer",display:"flex",alignItems:"center",gap:5,whiteSpace:"nowrap",transition:"all .15s"}}>
+<span>{p.icon}</span><span>{p.label}</span>
+</button>
+))}
+</div>
+<div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+<div style={{display:"flex",alignItems:"center",gap:5}}>
+<div style={{width:7,height:7,borderRadius:"50%",background:T.success,animation:"pulse 2s infinite"}}/>
+<span style={{color:T.textMuted,fontSize:10}}>Sistema operativo</span>
+</div>
+<div style={{width:32,height:32,borderRadius:"50%",background:T.accentGlow,border:`2px solid ${T.accent}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,cursor:"pointer",fontWeight:800,color:T.accent}}>A</div>
+</div>
+</div>
+
+{/* CONTENT */}
+<div style={{padding:activePanel==="mobile"?"32px 24px":"24px",maxWidth:activePanel==="mobile"?"none":1400,margin:"0 auto"}}>
+{activePanel==="admin"&&<AdminDashboard/>}
+{activePanel==="supervisor"&&<SupervisorView/>}
+{activePanel==="mobile"&&(
+<div style={{display:"flex",justifyContent:"center",alignItems:"flex-start",gap:40,flexWrap:"wrap"}}>
+<MobileApp step={mobileStep} setStep={setMobileStep}/>
+<div style={{maxWidth:360}}>
+<div style={{color:T.text,fontWeight:800,fontSize:22,marginBottom:8}}>GeoMail Tracker Mobile</div>
+<div style={{color:T.textMuted,fontSize:13,lineHeight:1.7,marginBottom:20}}>
+Aplicación nativa para repartidores disponible en Android e iOS. Funciona completamente offline con sincronización automática al recuperar conexión.
+</div>
+<div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:20}}>
+{[
+{step:0,label:"Inicio · Campañas asignadas",icon:"🏠"},
+{step:1,label:"Ruta · Entregas del día",icon:"🗺️"},
+{step:2,label:"Escaneo de código de barras",icon:"📷"},
+{step:3,label:"Evidencia fotográfica + GPS",icon:"🖼️"},
+{step:4,label:"Firma + Estado + Guardar",icon:"✍️"},
+].map(s=>(
+<button key={s.step} onClick={()=>setMobileStep(s.step)} style={{background:mobileStep===s.step?T.accentGlow:T.surfaceAlt,border:`1px solid ${mobileStep===s.step?T.accent:T.border}`,borderRadius:10,padding:"10px 14px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,textAlign:"left",transition:"all .15s"}}>
+<span style={{fontSize:18}}>{s.icon}</span>
+<span style={{color:mobileStep===s.step?T.accent:T.textSub,fontSize:12,fontWeight:mobileStep===s.step?700:400}}>{s.label}</span>
+</button>
+))}
+</div>
+<div style={{background:T.surfaceAlt,borderRadius:12,padding:16,border:`1px solid ${T.border}`}}>
+<div style={{color:T.text,fontWeight:700,fontSize:13,marginBottom:10}}>⚡ Capacidades Offline</div>
+{["Fotografías almacenadas localmente","Coordenadas GPS cacheadas en SQLite","Firmas digitales guardadas offline","Sync automático al recuperar red","Cola de eventos con reintentos","Sin pérdida de datos garantizada"].map(f=>(
+<div key={f} style={{display:"flex",gap:8,padding:"3px 0"}}>
+<span style={{color:T.success,fontSize:11,flexShrink:0}}>✓</span>
+<span style={{color:T.textSub,fontSize:11}}>{f}</span>
+</div>
+))}
+</div>
+</div>
+</div>
+)}
+{activePanel==="client"&&<ClientPortal/>}
+{activePanel==="architecture"&&<ArchitecturePanel/>}
+{activePanel==="datamodel"&&<DataModel/>}
+</div>
+</div>
+);
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
+HTMLEOF
+echo "Done. File size: $(wc -c < /mnt/user-data/outputs/geomail-tracker.html) bytes"
